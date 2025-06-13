@@ -13,7 +13,7 @@ Implement OCR to extract text from scanned documents using Python.
 - OCR text extraction with Tesseract
 - Save extracted content to a `.txt` file
 
-### 🧾 Sample Output
+
 
 ---
 
@@ -40,7 +40,7 @@ Learn Git fundamentals and practice using GitHub for version control and collabo
 ## 🔧 Git Commands Practiced
 - `git init`, `add`, `commit`, `push`
 - `git status`, `log --stat`
-- Branching: `checkout -b`, `merge`
+- Branching: `checkout -b`, `merge`,etc
 
 ## ☁️ GitHub Insights
 - GitHub = Cloud platform for Git repositories
