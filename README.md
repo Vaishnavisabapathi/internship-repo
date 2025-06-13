@@ -5,10 +5,10 @@
 ### 🎯 Objective
 Implement OCR to extract text from scanned documents using Python.
 
-### ⚙️ Tools & Libraries
+### Tools & Libraries
 - Python, OpenCV, Pillow, Tesseract OCR
 
-### 🔁 Process
+### Process
 - Image preprocessing (grayscale, resizing, thresholding)
 - OCR text extraction with Tesseract
 - Save extracted content to a `.txt` file
@@ -24,7 +24,7 @@ Implement OCR to extract text from scanned documents using Python.
 - **Mathematical**: Struggles with formulas, symbols like √, ∑
 - **Diagram-Based**: Diagrams not OCR-friendly; needs hybrid image analysis
 
-### ⚠Common Challenges
+### Common Challenges
 - Blurry/low-res scans
 - Handwriting variability
 - Complex layouts with text + visuals
