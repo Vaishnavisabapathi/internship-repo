@@ -1,4 +1,4 @@
-# 📅 Day 1 – OCR Implementation & Answer Sheet Analysis (09/06/2025)
+# 📅 Day 1-2 – OCR Implementation & Answer Sheet Analysis (09/06/2025)
 
 ## ✅ Task 1: OCR Using Python & Tesseract
 
@@ -32,7 +32,7 @@ Implement OCR to extract text from scanned documents using Python.
 ### 💡 Takeaway
 OCR performance depends on content type. Custom preprocessing and hybrid models are essential for accurate extraction in academic settings.
 ---
-# 📅 Day 2 – Git & GitHub Overview (13/06/2025)
+# 📅 Day 3-5  – Git & GitHub Overview (13/06/2025)
 
 ## 🎯 Objective
 Learn Git fundamentals and practice using GitHub for version control and collaboration.
