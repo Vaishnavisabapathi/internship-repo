@@ -1,57 +1,67 @@
-# Day 1-2 – OCR Implementation & Answer Sheet Analysis (09/06/2025)
+# 📘 Internship Progress Overview
 
-## Task 1: OCR Using Python & Tesseract
-
-### 🎯 Objective
-Implement OCR to extract text from scanned documents using Python.
-
-### Tools & Libraries
-- Python, OpenCV, Pillow, Tesseract OCR
-
-### Process
-- Image preprocessing (grayscale, resizing, thresholding)
-- OCR text extraction with Tesseract
-- Save extracted content to a `.txt` file
-
-
+## 🗓️ Week 1 Highlights
 
 ---
 
-## Task 2: OCR Challenges in Academic Answer Sheets
+### 🧾 Day 1–2: OCR Implementation & Answer Sheet Analysis (09/06/2025)
 
-### 📘 Sheet Types & Insights
-- **Theory-Based**: Works well with standard OCR; issues with handwriting
-- **Mathematical**: Struggles with formulas, symbols like √, ∑
-- **Diagram-Based**: Diagrams not OCR-friendly; needs hybrid image analysis
+#### ✅ Task 1: OCR Using Python & Tesseract
 
-### Common Challenges
-- Blurry/low-res scans
-- Handwriting variability
-- Complex layouts with text + visuals
+**Objective**  
+Implement Optical Character Recognition (OCR) to extract text from scanned documents.
 
-### 💡 Takeaway
-OCR performance depends on content type. Custom preprocessing and hybrid models are essential for accurate extraction in academic settings.
+**Tools & Libraries Used**  
+- Python  
+- OpenCV  
+- Pillow  
+- Tesseract OCR
+
+**Process**  
+- Preprocessed images: grayscale conversion, resizing, thresholding  
+- Performed OCR using Tesseract  
+- Exported extracted content to `.txt` files
+
 ---
-# Day 3-5  – Git & GitHub Overview (13/06/2025)
 
-## 🎯 Objective
-Learn Git fundamentals and practice using GitHub for version control and collaboration.
+#### 📄 Task 2: OCR Challenges in Academic Answer Sheets
 
-##  Git Commands Practiced
-- `git init`, `add`, `commit`, `push`
-- `git status`, `log --stat`
-- Branching: `checkout -b`, `merge`,etc
+**Sheet Types & Observations**
+- **Theory-Based Sheets**: Standard OCR works; struggles with handwriting
+- **Mathematical Sheets**: Struggles with symbols (e.g., √, ∑)
+- **Diagram-Based Sheets**: OCR fails with diagrams; requires image analysis
 
-## GitHub Insights
-- GitHub = Cloud platform for Git repositories
-- Supports pull requests, issues, and team collaboration
+**Challenges Encountered**
+- Poor scan quality  
+- Handwriting inconsistency  
+- Mixed content (text + visuals)
 
-## 📂 Activities
-- Created and pushed repositories
-- Practiced commits and version tracking
-- Worked with files like `ocr.py`, `main.py`, `web_scraper.py`
-- Used `git log --stat` to monitor changes
+**Key Takeaway**  
+OCR effectiveness varies with content type. Accurate results require custom preprocessing and hybrid models tailored to academic formats.
 
-## 📌 Summary
-Gained hands-on experience in version control using Git and team collaboration via GitHub.
+---
 
+### 💻 Day 3–5: Git & GitHub Overview (13/06/2025)
+
+#### Objective  
+Understand and apply version control using Git, and collaborate using GitHub.
+
+#### 🛠️ Git Commands Practiced
+- `git init`, `git add`, `git commit`, `git push`  
+- `git status`, `git log --stat`  
+- Branching and merging: `git checkout -b`, `git merge`
+
+#### 🌐 GitHub Concepts Covered
+- Cloud-based Git repository hosting  
+- Pull requests, issues, and collaborative workflows
+
+#### 🧪 Activities Completed
+- Created and pushed repositories  
+- Tracked code changes with commits  
+- Worked on files like `ocr.py`, `main.py`, and `web_scraper.py`  
+- Analyzed commit history using `git log --stat`
+
+#### Summary  
+Acquired practical experience in source control and collaboration. Strengthened workflow discipline using Git and GitHub.
+
+---
