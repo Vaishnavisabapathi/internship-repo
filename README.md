@@ -172,5 +172,39 @@ This notebook explores the application of **linear models** in both **binary** a
 - Evaluating the impact of **regularization (C)** on model performance
 - Comparing **L1 and L2 regularization** effects on model coefficients
 - Handling real-world data (**Breast Cancer dataset**) with feature scaling
-- Performing **multiclass classification** using synthetic `make_blobs` data and interpreting multiple linear decision lines
+- Performing **multiclass classification** using synthetic `make_blobs` data and interpreting multiple linear decision line
+  -----
+## DAY 10 Summary – Supervised Learning with scikit-learn
+
+###  Decision Trees
+- Trained and visualized decision trees.
+- Explored model accuracy and feature importances on the Breast Cancer dataset.
+
+###  Tree-Based Regression
+- Compared predictions of `DecisionTreeRegressor` and `LinearRegression` on RAM price data.
+- Used log-scale plotting for better visualization.
+
+###  Random Forests
+- Built multiple decision trees using `RandomForestClassifier`.
+- Visualized individual trees’ decision boundaries.
+- Evaluated ensemble performance.
+
+###  Gradient Boosting
+- Used `GradientBoostingClassifier` with various hyperparameters.
+- Analyzed accuracy and feature importances.
+
+###  Support Vector Machines (SVM)
+- Trained both linear and kernel-based SVMs.
+- Demonstrated decision boundaries in 2D and 3D spaces.
+- Explored the effects of parameters `C` and `gamma`.
+
+###  Neural Networks (MLP)
+- Trained `MLPClassifier` on synthetic (`make_moons`) and real-world datasets.
+- Tuned hidden layers, solver, `alpha` (regularization), and performed input scaling.
+- Visualized weight matrix to understand learned features.
+
+---
+
+> 🧠 **Skills Gained**: Training & tuning models, data scaling, decision surface visualization, performance evaluation, and using scikit-learn’s ensemble and neural network models effectively.
+
 
