@@ -134,3 +134,32 @@ Hands-on exposure to core libraries forming the foundation of data science:
 - **Pandas** for data analysis and filtering
 
 ---
+##  DAY 7 – Supervised Learning: Datasets & k-NN Classifier
+
+This notebook introduces the foundations of **supervised learning** with an emphasis on understanding datasets and implementing **k-Nearest Neighbors (k-NN) classification**. It includes:
+
+###  Synthetic Datasets
+- **Forge Dataset** – Used for binary classification with 2D visualization.
+- **Wave Dataset** – Used for regression tasks with one feature.
+
+###  Real-world Datasets
+- **Breast Cancer Dataset** – Binary classification problem involving medical data.
+- **Boston Housing Dataset** – Regression dataset with extended features.
+
+###  Machine Learning Concepts
+- Splitting datasets using `train_test_split`
+- Training a `KNeighborsClassifier`
+- Visualizing decision boundaries for different `k` values
+- Plotting accuracy vs. `k` to evaluate overfitting vs. underfitting
+
+---
+
+##  DAY 8 – Supervised Learning: k-NN Regression
+
+This notebook extends the understanding of **k-NN into regression tasks**. It provides a visual and intuitive explanation of how changing the number of neighbors impacts regression predictions.
+
+###  Core Topics
+- `KNeighborsRegressor` – k-Nearest Neighbors Regression
+- Effect of changing the `n_neighbors` parameter
+- Visualizing smoothness vs. complexity in regression curves
+- Practical use of `mglearn` to generate examples
