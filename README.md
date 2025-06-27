@@ -234,3 +234,20 @@ This notebook explores the application of **linear models** in both **binary** a
 ### Outcome
 
 I successfully visualized clusters of similar faces, identified outliers, and understood how different clustering methods behave on high-dimensional data after applying PCA. These steps helped strengthen my understanding of **unsupervised learning** and its application to real-world datasets.
+
+## DAY 13-14 Summary – Unsupervised Learning with scikit-learn
+
+## 🔍 What I Learned
+
+- How to **classify faces** using:
+  - **k-Nearest Neighbors (k-NN)**
+- How to apply **unsupervised clustering** to explore the dataset
+- How to evaluate model accuracy using:
+  - **Confusion Matrix**
+  - **Accuracy Score**
+- How to visualize:
+  - PCA-transformed data
+  - Clustered faces and noise
+- Basics of feature scaling and dimensionality reduction
+
+---
