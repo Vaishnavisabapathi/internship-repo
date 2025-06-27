@@ -205,6 +205,32 @@ This notebook explores the application of **linear models** in both **binary** a
 
 ---
 
-> 🧠 **Skills Gained**: Training & tuning models, data scaling, decision surface visualization, performance evaluation, and using scikit-learn’s ensemble and neural network models effectively.
+> **Skills Gained**: Training & tuning models, data scaling, decision surface visualization, performance evaluation, and using scikit-learn’s ensemble and neural network models effectively.
 
+## Week 3 Highlights
+## DAY 11-12 Summary – Unsupervised Learning with scikit-learn
+### What I Learned
 
+- How to use **PCA** to reduce dimensions of image data  
+- How to apply clustering algorithms:
+  - **KMeans**
+  - **DBSCAN**
+  - **Agglomerative (Hierarchical) Clustering**
+- How to visualize:
+  - **Principal components** (eigenfaces)
+  - **Clusters and noise**
+  - **Dendrograms** for hierarchical relationships
+- How to evaluate clustering with **Adjusted Rand Index (ARI)**
+
+---
+
+### Tools & Libraries Used
+
+- **Python**
+- `scikit-learn`, `matplotlib`, `scipy`, `mglearn`
+
+---
+
+### Outcome
+
+I successfully visualized clusters of similar faces, identified outliers, and understood how different clustering methods behave on high-dimensional data after applying PCA. These steps helped strengthen my understanding of **unsupervised learning** and its application to real-world datasets.
