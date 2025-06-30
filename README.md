@@ -251,3 +251,15 @@ I successfully visualized clusters of similar faces, identified outliers, and un
 - Basics of feature scaling and dimensionality reduction
 
 ---
+#  Day 15 – CHAPTER 3 -Feature Representation & Categorical Encoding
+
+This notebook explores how to represent data effectively for machine learning models, focusing on categorical variables and feature engineering.
+
+- Differentiated **continuous** vs **categorical** features using the Adult Income dataset.
+- Applied **one-hot encoding** with `pandas.get_dummies()` to convert categorical data into numerical format.
+- Highlighted risks of encoding training and test sets separately, which can break model compatibility.
+- Demonstrated how **numeric categorical features** must be explicitly treated using `.astype(str)`.
+- Trained a **logistic regression** model and resolved convergence issues with `max_iter`.
+- Compared behavior of **linear models** and **decision trees** using a synthetic dataset.
+- Emphasized the importance of correct feature representation in model performance.
+
