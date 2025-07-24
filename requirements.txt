@@ -1,0 +1,8 @@
+streamlit
+transformers
+torch
+pdf2image
+opencv-python
+pillow
+numpy
+pandas
