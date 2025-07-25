@@ -1,15 +1,16 @@
 import os
-import cv2
 import io
-import torch
+import cv2
 import numpy as np
 import pandas as pd
-from PIL import Image
 import streamlit as st
-from pdf2image import convert_from_bytes
+from PIL import Image
+from pdf2image import convert_from_path
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+import torch
+import tempfile
 
-# ---------------- Model Loading ----------------
+# === Load TrOCR model and processor ===
 @st.cache_resource
 def load_model():
     processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten")
@@ -19,21 +20,28 @@ def load_model():
 
 processor, model = load_model()
 
-# ---------------- Line Segmentation ----------------
-def segment_lines(image, proj_threshold=15, min_line_height=10):
+# === Line segmentation using projection profile ===
+def segment_lines_from_image(image: Image.Image):
     img = np.array(image)
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 3))
-    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
-    projection = np.sum(binary, axis=1)
+
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
+    closed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel_close)
+
+    kernel_dilate = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 15))
+    dilated = cv2.dilate(closed, kernel_dilate, iterations=1)
+
+    projection = np.sum(dilated, axis=1)
+    height = dilated.shape[0]
 
     lines = []
     in_line = False
     start = 0
 
-    for y in range(binary.shape[0]):
-        if projection[y] > proj_threshold:
+    for y in range(height):
+        if projection[y] > 0:
             if not in_line:
                 start = y
                 in_line = True
@@ -41,84 +49,130 @@ def segment_lines(image, proj_threshold=15, min_line_height=10):
             if in_line:
                 end = y
                 in_line = False
-                if end - start > min_line_height:
+                if end - start > 10:
                     lines.append((start, end))
     if in_line:
-        end = binary.shape[0]
-        if end - start > min_line_height:
+        end = height
+        if end - start > 10:
             lines.append((start, end))
 
-    line_images = []
-    for top, bottom in lines:
+    segmented_lines = []
+    for idx, (top, bottom) in enumerate(lines):
         margin = 5
         y1 = max(0, top - margin)
         y2 = min(img.shape[0], bottom + margin)
-        cropped = Image.fromarray(img[y1:y2, :])
-        line_images.append(cropped)
+        line_img = img[y1:y2, :]
 
-    return line_images
+        max_width = 1000
+        h, w = line_img.shape[:2]
+        if w > max_width:
+            new_w = max_width
+            new_h = int(h * (new_w / w))
+            line_img = cv2.resize(line_img, (new_w, new_h), interpolation=cv2.INTER_AREA)
 
-# ---------------- OCR Function ----------------
-@st.cache_data(show_spinner=False)
+        segmented_lines.append(Image.fromarray(line_img))
+
+    return segmented_lines
+
+# === OCR for a single image ===
 def run_ocr(image):
     pixel_values = processor(images=image, return_tensors="pt").pixel_values
     pixel_values = pixel_values.to("cuda" if torch.cuda.is_available() else "cpu")
-    generated_ids = model.generate(pixel_values)
+    generated_ids = model.generate(pixel_values, max_length=128)
     return processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
-# ---------------- Streamlit UI ----------------
-st.set_page_config(page_title="OCR Labeling", layout="wide")
-st.title("📄 Handwritten Line-Level OCR + Labeling Tool")
+# === Streamlit App ===
+st.set_page_config(page_title="Handwritten OCR Labeling Tool", layout="wide")
+st.title("📄 OCR & Labeling Tool")
 
-uploaded_files = st.file_uploader(
-    "📁 Upload PDFs or Images", type=["pdf", "png", "jpg", "jpeg"], accept_multiple_files=True
-)
+
+uploaded_files = st.file_uploader("📤 Upload PDFs or Images", type=["pdf", "png", "jpg", "jpeg"], accept_multiple_files=True)
 
 if uploaded_files:
-    labeled_data = []
-    line_queue = []
+    if "file_index" not in st.session_state:
+        st.session_state.file_index = 0
+    if "page_index" not in st.session_state:
+        st.session_state.page_index = 0
+    if "labeled_data" not in st.session_state:
+        st.session_state.labeled_data = []
+    if "ocr_cache" not in st.session_state:
+        st.session_state.ocr_cache = {}
+    if "pdf_images_cache" not in st.session_state:
+        st.session_state.pdf_images_cache = {}
 
-    for file in uploaded_files:
-        filename = file.name
-        if filename.lower().endswith(".pdf"):
-            pages = convert_from_bytes(file.read())
-            for i, page in enumerate(pages):
-                lines = segment_lines(page)
-                for j, line in enumerate(lines):
-                    line_id = f"{os.path.splitext(filename)[0]}_page{i+1:03}_line{j+1:03}"
-                    line_queue.append((line_id, line))
+    current_file = uploaded_files[st.session_state.file_index]
+    file_name = os.path.splitext(current_file.name)[0]
+
+    if current_file.name not in st.session_state.pdf_images_cache:
+        if current_file.type == "application/pdf":
+            with st.spinner(f"📖 Converting PDF: {current_file.name}"):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                    tmp_file.write(current_file.read())
+                    tmp_pdf_path = tmp_file.name
+                images = convert_from_path(tmp_pdf_path, fmt='png', dpi=300)
         else:
-            image = Image.open(file).convert("RGB")
-            lines = segment_lines(image)
-            for j, line in enumerate(lines):
-                line_id = f"{os.path.splitext(filename)[0]}_line{j+1:03}"
-                line_queue.append((line_id, line))
+            images = [Image.open(current_file).convert("RGB")]
+        st.session_state.pdf_images_cache[current_file.name] = images
 
-    # Pre-fill OCR for the first 5 lines
-    ocr_results = {}
-    for idx in range(min(5, len(line_queue))):
-        line_id, image = line_queue[idx]
-        ocr_results[line_id] = run_ocr(image)
+    pdf_images = st.session_state.pdf_images_cache[current_file.name]
+    total_pages = len(pdf_images)
+    current_page = st.session_state.page_index
 
-    placeholder = st.empty()
+    st.markdown(f"### 📄 File {st.session_state.file_index + 1} of {len(uploaded_files)} — Page {current_page + 1} of {total_pages}")
+    page_img = pdf_images[current_page]
 
-    for idx, (line_id, image) in enumerate(line_queue):
-        st.image(image, caption=line_id, width=600)
+    line_images = segment_lines_from_image(page_img)
+    st.info(f"✂️ {len(line_images)} lines found on Page {current_page + 1}")
 
-        # Run OCR for upcoming line if not already
-        if idx + 5 < len(line_queue) and line_queue[idx + 5][0] not in ocr_results:
-            next_id, next_image = line_queue[idx + 5]
-            ocr_results[next_id] = run_ocr(next_image)
+    for line_num, line_img in enumerate(line_images, 1):
+        line_id = f"{file_name}_page{current_page + 1:03}_line{line_num:03}"
+        st.image(line_img, caption=line_id, use_container_width=True)
 
-        default_text = ocr_results.get(line_id, "")
-        corrected_text = st.text_area(f"✏️ Edit Text for {line_id}", value=default_text, height=100)
-        labeled_data.append({"line_id": line_id, "text": corrected_text})
+        if line_id in st.session_state.ocr_cache:
+            extracted_text = st.session_state.ocr_cache[line_id]
+        else:
+            with st.spinner("🔍 Running OCR..."):
+                extracted_text = run_ocr(line_img)
+                st.session_state.ocr_cache[line_id] = extracted_text
 
-    if st.button("✅ Save All Labels"):
-        df = pd.DataFrame(labeled_data)
-        csv_data = df.to_csv(index=False).encode("utf-8")
-        st.download_button("⬇️ Download labeled_data.csv", csv_data, file_name="labeled_data.csv", mime="text/csv")
-        st.success("Labels saved successfully!")
+        edited_text = st.text_area(
+            f"✏️ Edit OCR - {line_id}", value=extracted_text, height=100, key=line_id
+        )
+
+        if not any(d["line_id"] == line_id for d in st.session_state.labeled_data):
+            st.session_state.labeled_data.append({
+                "line_id": line_id,
+                "text": edited_text
+            })
+
+    col1, col2 = st.columns(2)
+
+    if col1.button("➡️ Continue to Next Page"):
+        if st.session_state.page_index + 1 < total_pages:
+            st.session_state.page_index += 1
+            st.rerun()
+        else:
+            if st.session_state.file_index + 1 < len(uploaded_files):
+                st.session_state.file_index += 1
+                st.session_state.page_index = 0
+                st.rerun()
+            else:
+                st.success("✅ All files and pages have been processed!")
+
+                df = pd.DataFrame(st.session_state.labeled_data)
+                csv_data = df.to_csv(index=False).encode("utf-8")
+
+                st.download_button("⬇️ Download Labeled CSV", csv_data, file_name="labeled_data.csv", mime="text/csv")
+
+                if st.button("🔁 Reset & Start Over"):
+                    for key in ["file_index", "page_index", "labeled_data", "ocr_cache", "pdf_images_cache"]:
+                        st.session_state.pop(key, None)
+                    st.rerun()
+
+    if col2.button("🔁 Reset All"):
+        for key in ["file_index", "page_index", "labeled_data", "ocr_cache", "pdf_images_cache"]:
+            st.session_state.pop(key, None)
+        st.rerun()
 
 else:
-    st.info("Please upload some segmented images or PDFs to begin.")
+    st.info("👈 Upload your PDF or image files to begin.")
