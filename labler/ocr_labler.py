@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 from PIL import Image
-from pdf2image import convert_from_path
+from pdf2image import convert_from_path, pdfinfo_from_path
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 import torch
 import tempfile
@@ -85,7 +85,6 @@ def run_ocr(image):
 st.set_page_config(page_title="Handwritten OCR Labeling Tool", layout="wide")
 st.title("📄 OCR & Labeling Tool")
 
-
 uploaded_files = st.file_uploader("📤 Upload PDFs or Images", type=["pdf", "png", "jpg", "jpeg"], accept_multiple_files=True)
 
 if uploaded_files:
@@ -106,12 +105,20 @@ if uploaded_files:
     if current_file.name not in st.session_state.pdf_images_cache:
         if current_file.type == "application/pdf":
             with st.spinner(f"📖 Converting PDF: {current_file.name}"):
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                    tmp_file.write(current_file.read())
-                    tmp_pdf_path = tmp_file.name
-                images = convert_from_path(tmp_pdf_path, fmt='png', dpi=300)
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                        tmp_file.write(current_file.read())
+                        tmp_pdf_path = tmp_file.name
+
+                    # Ensure poppler is in PATH (Linux/Windows)
+                    poppler_path = os.getenv("POPPLER_PATH", None)
+                    images = convert_from_path(tmp_pdf_path, fmt='png', dpi=300, poppler_path=poppler_path)
+                except Exception as e:
+                    st.error(f"❌ Failed to convert PDF. Make sure Poppler is installed and added to PATH.\n\nError: {e}")
+                    st.stop()
         else:
             images = [Image.open(current_file).convert("RGB")]
+
         st.session_state.pdf_images_cache[current_file.name] = images
 
     pdf_images = st.session_state.pdf_images_cache[current_file.name]
@@ -173,6 +180,5 @@ if uploaded_files:
         for key in ["file_index", "page_index", "labeled_data", "ocr_cache", "pdf_images_cache"]:
             st.session_state.pop(key, None)
         st.rerun()
-
 else:
     st.info("👈 Upload your PDF or image files to begin.")
