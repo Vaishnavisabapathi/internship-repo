@@ -1,14 +1,13 @@
 import os
 import io
+import fitz  # PyMuPDF
 import cv2
 import numpy as np
 import pandas as pd
 import streamlit as st
 from PIL import Image
-from pdf2image import convert_from_path, pdfinfo_from_path
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 import torch
-import tempfile
 
 # === Load TrOCR model and processor ===
 @st.cache_resource
@@ -24,7 +23,6 @@ processor, model = load_model()
 def segment_lines_from_image(image: Image.Image):
     img = np.array(image)
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
     kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
@@ -39,7 +37,6 @@ def segment_lines_from_image(image: Image.Image):
     lines = []
     in_line = False
     start = 0
-
     for y in range(height):
         if projection[y] > 0:
             if not in_line:
@@ -81,6 +78,16 @@ def run_ocr(image):
     generated_ids = model.generate(pixel_values, max_length=128)
     return processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
+# === Convert PDF to images using PyMuPDF ===
+def convert_pdf_to_images(pdf_bytes):
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    images = []
+    for page in doc:
+        pix = page.get_pixmap(dpi=300)
+        img = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
+        images.append(img)
+    return images
+
 # === Streamlit App ===
 st.set_page_config(page_title="Handwritten OCR Labeling Tool", layout="wide")
 st.title("📄 OCR & Labeling Tool")
@@ -106,15 +113,10 @@ if uploaded_files:
         if current_file.type == "application/pdf":
             with st.spinner(f"📖 Converting PDF: {current_file.name}"):
                 try:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                        tmp_file.write(current_file.read())
-                        tmp_pdf_path = tmp_file.name
-
-                    # Ensure poppler is in PATH (Linux/Windows)
-                    poppler_path = os.getenv("POPPLER_PATH", None)
-                    images = convert_from_path(tmp_pdf_path, fmt='png', dpi=300, poppler_path=poppler_path)
+                    pdf_bytes = current_file.read()
+                    images = convert_pdf_to_images(pdf_bytes)
                 except Exception as e:
-                    st.error(f"❌ Failed to convert PDF. Make sure Poppler is installed and added to PATH.\n\nError: {e}")
+                    st.error(f"❌ Failed to convert PDF: {e}")
                     st.stop()
         else:
             images = [Image.open(current_file).convert("RGB")]
