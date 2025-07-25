@@ -1,11 +1,12 @@
 streamlit
+opencv-python-headless
 pandas
 numpy
 Pillow
-opencv-python-headless
 transformers
 torch
 pdf2image
 PyMuPDF
+
 
 
