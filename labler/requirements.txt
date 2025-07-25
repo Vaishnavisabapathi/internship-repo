@@ -1,9 +1,11 @@
-
 streamlit
+pandas
+numpy
+Pillow
+opencv-python-headless
 transformers
 torch
 pdf2image
-opencv-python
-pillow
-numpy
-pandas
+PyMuPDF
+
+
