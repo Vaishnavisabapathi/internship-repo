@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-multipart
+PyMuPDF==1.23.22
+pillow
+opencv-python
+numpy
+pytesseract
+pdf2image
