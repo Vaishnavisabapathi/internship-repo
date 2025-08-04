@@ -1,186 +1,178 @@
-import os
-import io
-import fitz  # PyMuPDF
-import cv2
-import numpy as np
-import pandas as pd
 import streamlit as st
-from PIL import Image
+import fitz  # PyMuPDF
+import numpy as np
+import io
+import base64
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
-import torch
+from PIL import Image, ImageEnhance
+import pandas as pd
+import cv2
+from typing import List
 
-# === Load TrOCR model and processor ===
+# --- CONFIGURE PAGE ---
+st.set_page_config(page_title="Handwritten OCR Labeling Tool", layout="wide")
+
+# --- LOAD OCR MODEL ---
 @st.cache_resource
 def load_model():
     processor = TrOCRProcessor.from_pretrained("microsoft/trocr-base-handwritten")
     model = VisionEncoderDecoderModel.from_pretrained("microsoft/trocr-base-handwritten")
-    model.to("cuda" if torch.cuda.is_available() else "cpu")
     return processor, model
 
 processor, model = load_model()
 
-# === Line segmentation using projection profile ===
-def segment_lines_from_image(image: Image.Image):
-    img = np.array(image)
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-
-    kernel_close = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 5))
-    closed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel_close)
-
-    kernel_dilate = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 15))
-    dilated = cv2.dilate(closed, kernel_dilate, iterations=1)
-
-    projection = np.sum(dilated, axis=1)
-    height = dilated.shape[0]
-
+# --- SEGMENTATION LOGIC ---
+def segment_lines_opencv(image: Image.Image) -> List[Image.Image]:
+    gray = np.array(image.convert("L"))
+    blur = cv2.GaussianBlur(gray, (3, 3), 0)
+    _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    horizontal_proj = np.sum(thresh, axis=1)
     lines = []
-    in_line = False
-    start = 0
-    for y in range(height):
-        if projection[y] > 0:
-            if not in_line:
-                start = y
-                in_line = True
-        else:
-            if in_line:
-                end = y
-                in_line = False
-                if end - start > 10:
-                    lines.append((start, end))
-    if in_line:
-        end = height
-        if end - start > 10:
-            lines.append((start, end))
+    h, w = thresh.shape
+    start = None
+    for i in range(h):
+        if horizontal_proj[i] > 0 and start is None:
+            start = i
+        elif horizontal_proj[i] == 0 and start is not None:
+            if i - start > 10:
+                line_img = image.crop((0, start, image.width, i))
+                if line_img.height > 5:
+                    lines.append(line_img)
+            start = None
+    if start is not None and h - start > 10:
+        line_img = image.crop((0, start, image.width, h))
+        if line_img.height > 5:
+            lines.append(line_img)
+    return lines
 
-    segmented_lines = []
-    for idx, (top, bottom) in enumerate(lines):
-        margin = 5
-        y1 = max(0, top - margin)
-        y2 = min(img.shape[0], bottom + margin)
-        line_img = img[y1:y2, :]
-
-        max_width = 1000
-        h, w = line_img.shape[:2]
-        if w > max_width:
-            new_w = max_width
-            new_h = int(h * (new_w / w))
-            line_img = cv2.resize(line_img, (new_w, new_h), interpolation=cv2.INTER_AREA)
-
-        segmented_lines.append(Image.fromarray(line_img))
-
-    return segmented_lines
-
-# === OCR for a single image ===
-def run_ocr(image):
-    pixel_values = processor(images=image, return_tensors="pt").pixel_values
-    pixel_values = pixel_values.to("cuda" if torch.cuda.is_available() else "cpu")
-    generated_ids = model.generate(pixel_values, max_length=128)
+def run_ocr(img: Image.Image) -> str:
+    pixel_values = processor(images=img, return_tensors="pt").pixel_values
+    generated_ids = model.generate(pixel_values)
     return processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
-# === Convert PDF to images using PyMuPDF ===
-def convert_pdf_to_images(pdf_bytes):
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    images = []
-    for page in doc:
-        pix = page.get_pixmap(dpi=300)
-        img = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
-        images.append(img)
-    return images
+# --- SESSION STATE ---
+if "pdf_images_cache" not in st.session_state:
+    st.session_state.pdf_images_cache = {}
+if "labeled_lines" not in st.session_state:
+    st.session_state.labeled_lines = []
+if "current_page" not in st.session_state:
+    st.session_state.current_page = 1
+if "line_index" not in st.session_state:
+    st.session_state.line_index = 0
+if "show_all_lines" not in st.session_state:
+    st.session_state.show_all_lines = False
 
-# === Streamlit App ===
-st.set_page_config(page_title="Handwritten OCR Labeling Tool", layout="wide")
-st.title("📄 OCR & Labeling Tool")
+# --- SIDEBAR FILE UPLOAD ---
+st.sidebar.title("OCR Labeling Tool")
+current_file = st.sidebar.file_uploader("Upload PDF", type=["pdf"])
 
-uploaded_files = st.file_uploader("📤 Upload PDFs or Images", type=["pdf", "png", "jpg", "jpeg"], accept_multiple_files=True)
-
-if uploaded_files:
-    if "file_index" not in st.session_state:
-        st.session_state.file_index = 0
-    if "page_index" not in st.session_state:
-        st.session_state.page_index = 0
-    if "labeled_data" not in st.session_state:
-        st.session_state.labeled_data = []
-    if "ocr_cache" not in st.session_state:
-        st.session_state.ocr_cache = {}
-    if "pdf_images_cache" not in st.session_state:
-        st.session_state.pdf_images_cache = {}
-
-    current_file = uploaded_files[st.session_state.file_index]
-    file_name = os.path.splitext(current_file.name)[0]
-
+if current_file:
     if current_file.name not in st.session_state.pdf_images_cache:
-        if current_file.type == "application/pdf":
-            with st.spinner(f"📖 Converting PDF: {current_file.name}"):
-                try:
-                    pdf_bytes = current_file.read()
-                    images = convert_pdf_to_images(pdf_bytes)
-                except Exception as e:
-                    st.error(f"❌ Failed to convert PDF: {e}")
-                    st.stop()
+        with st.spinner("Extracting pages..."):
+            doc = fitz.open(stream=current_file.read(), filetype="pdf")
+            images = []
+            for page in doc:
+                pix = page.get_pixmap(dpi=200)
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                images.append(img)
+            st.session_state.pdf_images_cache[current_file.name] = images
+            st.session_state.current_page = 1
+            st.session_state.line_index = 0
+
+    images = st.session_state.pdf_images_cache[current_file.name]
+    total_pages = len(images)
+
+    # --- PAGE NAVIGATION ---
+    st.sidebar.markdown("**Page Navigation**")
+    col_prev, col_page, col_next = st.sidebar.columns([1, 2, 1])
+    with col_prev:
+        if st.button("⬅️ ", key="prev_page") and st.session_state.current_page > 1:
+            st.session_state.current_page -= 1
+            st.session_state.line_index = 0
+    with col_next:
+        if st.button(" ➡️", key="next_page") and st.session_state.current_page < total_pages:
+            st.session_state.current_page += 1
+            st.session_state.line_index = 0
+    with col_page:
+        st.markdown(f"<div style='text-align:center;font-size:16px;'>Page {st.session_state.current_page}/{total_pages}</div>", unsafe_allow_html=True)
+
+    # --- IMAGE SELECTION ---
+    page_num = st.session_state.current_page
+    selected_img = images[page_num - 1]
+
+    # --- SEGMENTATION ---
+    with st.spinner("Segmenting lines..."):
+        lines = segment_lines_opencv(selected_img)
+    total_lines = len(lines)
+
+    # --- TOGGLE: SHOW ALL LINES ---
+    st.sidebar.markdown("**Line Display**")
+    st.session_state.show_all_lines = st.sidebar.checkbox("Show All Lines", value=st.session_state.show_all_lines)
+
+    # --- LINE LABELING SECTION ---
+    if not lines:
+        st.warning("No lines detected on this page.")
+    else:
+        st.markdown("### Segmented Lines and OCR Text")
+
+        if st.session_state.show_all_lines:
+            display_lines = lines
         else:
-            images = [Image.open(current_file).convert("RGB")]
+            display_lines = lines[st.session_state.line_index:st.session_state.line_index + 5]
 
-        st.session_state.pdf_images_cache[current_file.name] = images
+        updated_labels = {}
+        for i, line_img in enumerate(display_lines):
+            global_line_num = st.session_state.line_index + i + 1
+            line_id = f"{current_file.name}_page{page_num:03d}_line{global_line_num:03d}"
+            with st.container(border=True):
+                st.markdown(f"**Line {global_line_num}** — ID: `{line_id}`")
+                enhancer = ImageEnhance.Contrast(line_img)
+                enhanced_img = enhancer.enhance(2.5)
+                resized_img = enhanced_img.resize((700, int(enhanced_img.height * 700 / enhanced_img.width)))
+                st.image(resized_img)
+                corrected_text = st.text_input("Corrected Text", value=run_ocr(line_img), key=line_id)
+                updated_labels[line_id] = corrected_text
 
-    pdf_images = st.session_state.pdf_images_cache[current_file.name]
-    total_pages = len(pdf_images)
-    current_page = st.session_state.page_index
-
-    st.markdown(f"### 📄 File {st.session_state.file_index + 1} of {len(uploaded_files)} — Page {current_page + 1} of {total_pages}")
-    page_img = pdf_images[current_page]
-
-    line_images = segment_lines_from_image(page_img)
-    st.info(f"✂️ {len(line_images)} lines found on Page {current_page + 1}")
-
-    for line_num, line_img in enumerate(line_images, 1):
-        line_id = f"{file_name}_page{current_page + 1:03}_line{line_num:03}"
-        st.image(line_img, caption=line_id, use_container_width=True)
-
-        if line_id in st.session_state.ocr_cache:
-            extracted_text = st.session_state.ocr_cache[line_id]
-        else:
-            with st.spinner("🔍 Running OCR..."):
-                extracted_text = run_ocr(line_img)
-                st.session_state.ocr_cache[line_id] = extracted_text
-
-        edited_text = st.text_area(
-            f"✏️ Edit OCR - {line_id}", value=extracted_text, height=100, key=line_id
-        )
-
-        if not any(d["line_id"] == line_id for d in st.session_state.labeled_data):
-            st.session_state.labeled_data.append({
-                "line_id": line_id,
-                "text": edited_text
-            })
-
-    col1, col2 = st.columns(2)
-
-    if col1.button("➡️ Continue to Next Page"):
-        if st.session_state.page_index + 1 < total_pages:
-            st.session_state.page_index += 1
-            st.rerun()
-        else:
-            if st.session_state.file_index + 1 < len(uploaded_files):
-                st.session_state.file_index += 1
-                st.session_state.page_index = 0
-                st.rerun()
+        for line_id, corrected_text in updated_labels.items():
+            existing = next((item for item in st.session_state.labeled_lines if item["line_id"] == line_id), None)
+            if existing:
+                existing["corrected_text"] = corrected_text
             else:
-                st.success("✅ All files and pages have been processed!")
+                st.session_state.labeled_lines.append({
+                    "line_id": line_id,
+                    "corrected_text": corrected_text
+                })
 
-                df = pd.DataFrame(st.session_state.labeled_data)
-                csv_data = df.to_csv(index=False).encode("utf-8")
+        # --- LINE SET NAVIGATION ---
+        if not st.session_state.show_all_lines:
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button("⬅️ Prev 5", key="prev_5") and st.session_state.line_index >= 5:
+                    st.session_state.line_index -= 5
+            with col2:
+                if st.button("Next 5 ➡️", key="next_5") and st.session_state.line_index + 5 < total_lines:
+                    st.session_state.line_index += 5
 
-                st.download_button("⬇️ Download Labeled CSV", csv_data, file_name="labeled_data.csv", mime="text/csv")
+    # --- EXPORT SECTION ---
+    st.markdown("### Export Corrected Labels")
+    if st.session_state.labeled_lines:
+        df = pd.DataFrame(st.session_state.labeled_lines).drop_duplicates("line_id", keep="last")
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("Download CSV", data=csv, file_name="labeled_output.csv", mime="text/csv")
 
-                if st.button("🔁 Reset & Start Over"):
-                    for key in ["file_index", "page_index", "labeled_data", "ocr_cache", "pdf_images_cache"]:
-                        st.session_state.pop(key, None)
-                    st.rerun()
-
-    if col2.button("🔁 Reset All"):
-        for key in ["file_index", "page_index", "labeled_data", "ocr_cache", "pdf_images_cache"]:
-            st.session_state.pop(key, None)
-        st.rerun()
 else:
-    st.info("👈 Upload your PDF or image files to begin.")
+    st.markdown("## Welcome to the OCR Labeling Tool")
+    st.markdown(
+        """
+        Upload a handwritten PDF from the sidebar to begin labeling segmented lines.
+        This tool uses TR-OCR for handwritten recognition and OpenCV for line segmentation.
+
+        ---
+        **Features**
+        - Accurate OCR for handwritten text
+        - Clean UI with professional navigation
+        - Label 5 lines at a time or view all
+        - Download labeled data as CSV
+        ---
+        """
+    )
