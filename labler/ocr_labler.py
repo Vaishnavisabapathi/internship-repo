@@ -8,6 +8,9 @@ from PIL import Image, ImageEnhance
 import pandas as pd
 import cv2
 from typing import List
+import os
+os.environ["TRANSFORMERS_CACHE"] = "/home/ubuntu/.cache/huggingface"  # persistent cache
+
 
 # --- CONFIGURE PAGE ---
 st.set_page_config(page_title="Handwritten OCR Labeling Tool", layout="wide")
