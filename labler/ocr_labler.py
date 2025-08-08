@@ -43,18 +43,10 @@ def segment_lines_opencv(image: Image.Image) -> List[Image.Image]:
             lines.append(line_img)
     return lines
 
-# --- OCR CACHING ---
-if "ocr_results" not in st.session_state:
-    st.session_state.ocr_results = {}
-
-def get_ocr(line_id, img):
-    """Run OCR only once per unique line_id."""
-    if line_id not in st.session_state.ocr_results:
-        pixel_values = processor(images=img, return_tensors="pt").pixel_values
-        generated_ids = model.generate(pixel_values)
-        text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-        st.session_state.ocr_results[line_id] = text
-    return st.session_state.ocr_results[line_id]
+def run_ocr(img: Image.Image) -> str:
+    pixel_values = processor(images=img, return_tensors="pt").pixel_values
+    generated_ids = model.generate(pixel_values)
+    return processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
 # --- SESSION STATE ---
 if "pdf_images_cache" not in st.session_state:
@@ -67,15 +59,6 @@ if "line_index" not in st.session_state:
     st.session_state.line_index = 0
 if "show_all_lines" not in st.session_state:
     st.session_state.show_all_lines = False
-
-# --- LINE NAVIGATION FUNCTIONS ---
-def next_lines():
-    if st.session_state.line_index + 5 < st.session_state.total_lines:
-        st.session_state.line_index += 5
-
-def prev_lines():
-    if st.session_state.line_index >= 5:
-        st.session_state.line_index -= 5
 
 # --- SIDEBAR FILE UPLOAD ---
 st.sidebar.title("OCR Labeling Tool")
@@ -104,10 +87,12 @@ if current_file:
         if st.button("⬅️", key="prev_page") and st.session_state.current_page > 1:
             st.session_state.current_page -= 1
             st.session_state.line_index = 0
+            st.rerun()
     with col_next:
         if st.button("➡️", key="next_page") and st.session_state.current_page < total_pages:
             st.session_state.current_page += 1
             st.session_state.line_index = 0
+            st.rerun()
     with col_page:
         st.markdown(
             f"<div style='text-align:center;font-size:16px;'>Page {st.session_state.current_page}/{total_pages}</div>",
@@ -121,12 +106,13 @@ if current_file:
     # --- SEGMENTATION ---
     with st.spinner("Segmenting lines..."):
         lines = segment_lines_opencv(selected_img)
-    st.session_state.total_lines = len(lines)
+    total_lines = len(lines)
 
     # --- TOGGLE: SHOW ALL LINES ---
     st.sidebar.markdown("**Line Display**")
     st.session_state.show_all_lines = st.sidebar.checkbox(
-        "Show All Lines", value=st.session_state.show_all_lines
+        "Show All Lines",
+        value=st.session_state.show_all_lines
     )
 
     # --- LINE LABELING SECTION ---
@@ -141,7 +127,14 @@ if current_file:
             display_lines = lines[st.session_state.line_index:st.session_state.line_index + 5]
 
         updated_labels = {}
+
+        # --- Batch Progress Bar ---
+        progress_placeholder = st.empty()
+        progress_bar = progress_placeholder.progress(0)
+
         for i, line_img in enumerate(display_lines):
+            progress_bar.progress(int(((i + 1) / len(display_lines)) * 100))
+
             global_line_num = st.session_state.line_index + i + 1
             line_id = f"{current_file.name}_page{page_num:03d}_line{global_line_num:03d}"
 
@@ -149,18 +142,25 @@ if current_file:
                 st.markdown(f"**Line {global_line_num}** — ID: `{line_id}`")
                 enhancer = ImageEnhance.Contrast(line_img)
                 enhanced_img = enhancer.enhance(2.5)
-                resized_img = enhanced_img.resize((700, int(enhanced_img.height * 700 / enhanced_img.width)))
+                resized_img = enhanced_img.resize(
+                    (700, int(enhanced_img.height * 700 / enhanced_img.width))
+                )
                 st.image(resized_img)
-
-                # ✅ Use precomputed OCR
-                ocr_text = get_ocr(line_id, line_img)
-
-                corrected_text = st.text_input("Corrected Text", value=ocr_text, key=line_id)
+                corrected_text = st.text_input(
+                    "Corrected Text", 
+                    value=run_ocr(line_img),
+                    key=line_id
+                )
                 updated_labels[line_id] = corrected_text
 
-        # --- SAVE LABELS ---
+        progress_placeholder.empty()  # Remove progress bar when done
+
+        # --- Update Session State ---
         for line_id, corrected_text in updated_labels.items():
-            existing = next((item for item in st.session_state.labeled_lines if item["line_id"] == line_id), None)
+            existing = next(
+                (item for item in st.session_state.labeled_lines if item["line_id"] == line_id),
+                None
+            )
             if existing:
                 existing["corrected_text"] = corrected_text
             else:
@@ -173,9 +173,13 @@ if current_file:
         if not st.session_state.show_all_lines:
             col1, col2 = st.columns([1, 1])
             with col1:
-                st.button("⬅️ Prev 5", on_click=prev_lines)
+                if st.button("⬅️ Prev 5", key="prev_5") and st.session_state.line_index >= 5:
+                    st.session_state.line_index -= 5
+                    st.rerun()
             with col2:
-                st.button("Next 5 ➡️", on_click=next_lines)
+                if st.button("Next 5 ➡️", key="next_5") and st.session_state.line_index + 5 < total_lines:
+                    st.session_state.line_index += 5
+                    st.rerun()
 
     # --- EXPORT SECTION ---
     st.markdown("### Export Corrected Labels")
