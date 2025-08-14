@@ -138,6 +138,10 @@ if current_file:
             global_line_num = st.session_state.line_index + i + 1
             line_id = f"{current_file.name}_page{page_num:03d}_line{global_line_num:03d}"
 
+            # Run OCR once and store it
+            if line_id not in st.session_state:
+                st.session_state[line_id] = run_ocr(line_img)
+
             with st.container():
                 st.markdown(f"**Line {global_line_num}** — ID: `{line_id}`")
                 enhancer = ImageEnhance.Contrast(line_img)
@@ -148,8 +152,8 @@ if current_file:
                 st.image(resized_img)
                 corrected_text = st.text_input(
                     "Corrected Text", 
-                    value=run_ocr(line_img),
-                    key=line_id
+                    value=st.session_state[line_id],
+                    key=f"text_{line_id}"
                 )
                 updated_labels[line_id] = corrected_text
 
@@ -165,6 +169,7 @@ if current_file:
                 existing["corrected_text"] = corrected_text
             else:
                 st.session_state.labeled_lines.append({
+                    "filename": current_file.name,  # store PDF filename
                     "line_id": line_id,
                     "corrected_text": corrected_text
                 })
@@ -186,7 +191,12 @@ if current_file:
     if st.session_state.labeled_lines:
         df = pd.DataFrame(st.session_state.labeled_lines).drop_duplicates("line_id", keep="last")
         csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("Download CSV", data=csv, file_name="labeled_output.csv", mime="text/csv")
+        st.download_button(
+            "Download CSV", 
+            data=csv, 
+            file_name=f"{current_file.name}_labeled_output.csv", 
+            mime="text/csv"
+        )
 
 else:
     st.markdown("## Welcome to the OCR Labeling Tool")
