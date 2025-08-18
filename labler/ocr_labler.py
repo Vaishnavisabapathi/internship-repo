@@ -55,8 +55,8 @@ if "labeled_lines" not in st.session_state:
     st.session_state.labeled_lines = []
 if "current_page" not in st.session_state:
     st.session_state.current_page = 1
-if "line_index" not in st.session_state:
-    st.session_state.line_index = 0
+if "line_index_per_page" not in st.session_state:
+    st.session_state.line_index_per_page = {}
 if "show_all_lines" not in st.session_state:
     st.session_state.show_all_lines = False
 
@@ -75,23 +75,25 @@ if current_file:
                 images.append(img)
             st.session_state.pdf_images_cache[current_file.name] = images
             st.session_state.current_page = 1
-            st.session_state.line_index = 0
+            st.session_state.line_index_per_page[1] = 0
 
     images = st.session_state.pdf_images_cache[current_file.name]
     total_pages = len(images)
 
     # --- PAGE NAVIGATION ---
-    st.sidebar.markdown("**Page Navigation**")
+    st.sidebar.markdown("*Page Navigation*")
     col_prev, col_page, col_next = st.sidebar.columns([1, 2, 1])
     with col_prev:
-        if st.button("⬅️", key="prev_page") and st.session_state.current_page > 1:
+        if st.button("⬅", key=f"prev_page_{current_file.name}") and st.session_state.current_page > 1:
             st.session_state.current_page -= 1
-            st.session_state.line_index = 0
+            if st.session_state.current_page not in st.session_state.line_index_per_page:
+                st.session_state.line_index_per_page[st.session_state.current_page] = 0
             st.rerun()
     with col_next:
-        if st.button("➡️", key="next_page") and st.session_state.current_page < total_pages:
+        if st.button("➡", key=f"next_page_{current_file.name}") and st.session_state.current_page < total_pages:
             st.session_state.current_page += 1
-            st.session_state.line_index = 0
+            if st.session_state.current_page not in st.session_state.line_index_per_page:
+                st.session_state.line_index_per_page[st.session_state.current_page] = 0
             st.rerun()
     with col_page:
         st.markdown(
@@ -109,7 +111,7 @@ if current_file:
     total_lines = len(lines)
 
     # --- TOGGLE: SHOW ALL LINES ---
-    st.sidebar.markdown("**Line Display**")
+    st.sidebar.markdown("*Line Display*")
     st.session_state.show_all_lines = st.sidebar.checkbox(
         "Show All Lines",
         value=st.session_state.show_all_lines
@@ -121,10 +123,13 @@ if current_file:
     else:
         st.markdown("### Segmented Lines and OCR Text")
 
+        # Get current page line index
+        line_index = st.session_state.line_index_per_page.get(page_num, 0)
+
         if st.session_state.show_all_lines:
             display_lines = lines
         else:
-            display_lines = lines[st.session_state.line_index:st.session_state.line_index + 5]
+            display_lines = lines[line_index: line_index + 5]
 
         updated_labels = {}
 
@@ -135,7 +140,7 @@ if current_file:
         for i, line_img in enumerate(display_lines):
             progress_bar.progress(int(((i + 1) / len(display_lines)) * 100))
 
-            global_line_num = st.session_state.line_index + i + 1
+            global_line_num = line_index + i + 1
             line_id = f"{current_file.name}_page{page_num:03d}_line{global_line_num:03d}"
 
             # Run OCR once and store it
@@ -143,7 +148,7 @@ if current_file:
                 st.session_state[line_id] = run_ocr(line_img)
 
             with st.container():
-                st.markdown(f"**Line {global_line_num}** — ID: `{line_id}`")
+                st.markdown(f"*Line {global_line_num}* — ID: {line_id}")
                 enhancer = ImageEnhance.Contrast(line_img)
                 enhanced_img = enhancer.enhance(2.5)
                 resized_img = enhanced_img.resize(
@@ -178,12 +183,12 @@ if current_file:
         if not st.session_state.show_all_lines:
             col1, col2 = st.columns([1, 1])
             with col1:
-                if st.button("⬅️ Prev 5", key="prev_5") and st.session_state.line_index >= 5:
-                    st.session_state.line_index -= 5
+                if st.button(f"⬅ Prev 5 page{page_num}") and line_index > 0:
+                    st.session_state.line_index_per_page[page_num] = max(line_index - 5, 0)
                     st.rerun()
             with col2:
-                if st.button("Next 5 ➡️", key="next_5") and st.session_state.line_index + 5 < total_lines:
-                    st.session_state.line_index += 5
+                if st.button(f"Next 5 ➡ page{page_num}") and line_index + 5 < total_lines:
+                    st.session_state.line_index_per_page[page_num] = min(line_index + 5, total_lines - 1)
                     st.rerun()
 
     # --- EXPORT SECTION ---
@@ -206,7 +211,7 @@ else:
         This tool uses TR-OCR for handwritten recognition and OpenCV for line segmentation.
 
         ---
-        **Features**
+        *Features*
         - Accurate OCR for handwritten text
         - Clean UI with professional navigation
         - Label 5 lines at a time or view all
