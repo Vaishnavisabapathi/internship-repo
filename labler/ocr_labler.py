@@ -123,8 +123,6 @@ if current_file:
 
         display_lines = lines if st.session_state.show_all_lines else lines[st.session_state.line_index:st.session_state.line_index + 5]
 
-        updated_labels = {}
-
         # --- Batch Progress Bar ---
         progress_placeholder = st.empty()
         progress_bar = progress_placeholder.progress(0)
@@ -147,31 +145,32 @@ if current_file:
                     (700, int(enhanced_img.height * 700 / enhanced_img.width))
                 )
                 st.image(resized_img)
+
                 corrected_text = st.text_area(
                     "Corrected Text",
                     value=st.session_state[line_id],
                     key=f"text_{line_id}",
                     height=80
                 )
+
+                # Update session_state
                 st.session_state[line_id] = corrected_text
-                updated_labels[line_id] = corrected_text
+
+                # 🔑 Immediately update labeled_lines
+                existing = next(
+                    (item for item in st.session_state.labeled_lines if item["line_id"] == line_id),
+                    None
+                )
+                if existing:
+                    existing["corrected_text"] = corrected_text
+                else:
+                    st.session_state.labeled_lines.append({
+                        "filename": current_file.name,
+                        "line_id": line_id,
+                        "corrected_text": corrected_text
+                    })
 
         progress_placeholder.empty()  # Remove progress bar when done
-
-        # --- Update Session State ---
-        for line_id, corrected_text in updated_labels.items():
-            existing = next(
-                (item for item in st.session_state.labeled_lines if item["line_id"] == line_id),
-                None
-            )
-            if existing:
-                existing["corrected_text"] = corrected_text
-            else:
-                st.session_state.labeled_lines.append({
-                    "filename": current_file.name,  # store PDF filename
-                    "line_id": line_id,
-                    "corrected_text": corrected_text
-                })
 
         # --- LINE SET NAVIGATION ---
         if not st.session_state.show_all_lines:
