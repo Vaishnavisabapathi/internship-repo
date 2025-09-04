@@ -59,6 +59,9 @@ if "line_index" not in st.session_state:
     st.session_state.line_index = 0
 if "show_all_lines" not in st.session_state:
     st.session_state.show_all_lines = False
+# FIX: dedicated store for OCR texts to avoid polluting session_state
+if "ocr_texts" not in st.session_state:
+    st.session_state.ocr_texts = {}
 
 # --- SIDEBAR FILE UPLOAD ---
 st.sidebar.title("OCR Labeling Tool")
@@ -121,42 +124,50 @@ if current_file:
     else:
         st.markdown("### Segmented Lines and OCR Text")
 
-        display_lines = lines if st.session_state.show_all_lines else lines[st.session_state.line_index:st.session_state.line_index + 5]
+        # FIX: choose base index correctly when showing all lines
+        base_index = 0 if st.session_state.show_all_lines else st.session_state.line_index
+        display_lines = lines if st.session_state.show_all_lines else lines[base_index:base_index + 5]
 
         # --- Batch Progress Bar ---
         progress_placeholder = st.empty()
         progress_bar = progress_placeholder.progress(0)
 
         for i, line_img in enumerate(display_lines):
+            # update progress as 0-100 int
             progress_bar.progress(int(((i + 1) / len(display_lines)) * 100))
 
-            global_line_num = st.session_state.line_index + i + 1
+            # FIX: consistent and correct line numbering
+            global_line_num = base_index + i + 1
             line_id = f"{current_file.name}_page{page_num:03d}_line{global_line_num:03d}"
 
-            # Run OCR once and store it
-            if line_id not in st.session_state:
-                st.session_state[line_id] = run_ocr(line_img)
+            # Run OCR once and store it safely
+            if line_id not in st.session_state.ocr_texts:
+                st.session_state.ocr_texts[line_id] = run_ocr(line_img)
 
             with st.container():
                 st.markdown(f"**Line {global_line_num}** — ID: `{line_id}`")
+
+                # Enhance contrast and resize safely without distortion
                 enhancer = ImageEnhance.Contrast(line_img)
                 enhanced_img = enhancer.enhance(2.5)
-                resized_img = enhanced_img.resize(
-                    (700, int(enhanced_img.height * 700 / enhanced_img.width))
-                )
+
+                # FIX: preserve aspect ratio with a reasonable bound
+                resized_img = enhanced_img.copy()
+                resized_img.thumbnail((700, 300))  # max width 700px, max height 300px
                 st.image(resized_img)
 
+                # Use OCR text as initial value; widget state kept in its own key
                 corrected_text = st.text_area(
                     "Corrected Text",
-                    value=st.session_state[line_id],
+                    value=st.session_state.ocr_texts[line_id],
                     key=f"text_{line_id}",
                     height=80
                 )
 
-                # Update session_state
-                st.session_state[line_id] = corrected_text
+                # Keep OCR store in sync with latest edits
+                st.session_state.ocr_texts[line_id] = corrected_text
 
-                # 🔑 Immediately update labeled_lines
+                # 🔑 Immediately update labeled_lines (dedup by line_id)
                 existing = next(
                     (item for item in st.session_state.labeled_lines if item["line_id"] == line_id),
                     None
@@ -187,9 +198,17 @@ if current_file:
     # --- EXPORT SECTION ---
     st.markdown("### Export Corrected Labels")
     if st.session_state.labeled_lines:
-        df = pd.DataFrame(st.session_state.labeled_lines).drop_duplicates("line_id", keep="last")
-        csv = df.to_csv(index=False).encode("utf-8")
-        st.download_button("Download CSV", data=csv, file_name=f"{current_file.name}_labeled_output.csv", mime="text/csv")
+        # FIX: keep only entries for the current file and latest edit per line_id
+        cur_rows = [r for r in st.session_state.labeled_lines if r["filename"] == current_file.name]
+        if cur_rows:
+            df = pd.DataFrame(cur_rows).drop_duplicates("line_id", keep="last")
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "Download CSV",
+                data=csv,
+                file_name=f"{current_file.name}_labeled_output.csv",
+                mime="text/csv"
+            )
 
 else:
     st.markdown("## Welcome to the OCR Labeling Tool")
