@@ -6,6 +6,12 @@ from PIL import Image, ImageEnhance
 import pandas as pd
 import cv2
 from typing import List
+import os
+
+# --- DATASET FOLDER ---
+dataset_folder = "dataset"
+os.makedirs(dataset_folder, exist_ok=True)
+
 
 # --- CONFIGURE PAGE ---
 st.set_page_config(page_title="Handwritten OCR Labeling Tool", layout="wide")
@@ -107,9 +113,17 @@ if current_file:
     selected_img = images[page_num - 1]
 
     # --- SEGMENTATION ---
+   
     with st.spinner("Segmenting lines..."):
         lines = segment_lines_opencv(selected_img)
-    total_lines = len(lines)
+
+# --- FILTER ONLY SINGLE-LINE SEGMENTS ---
+    MIN_HEIGHT = 15   # adjust based on your dataset
+    MAX_HEIGHT = 100  # adjust based on your dataset
+    filtered_lines = [line for line in lines if MIN_HEIGHT <= line.height <= MAX_HEIGHT]
+
+    total_lines = len(filtered_lines)
+
 
     # --- TOGGLE: SHOW ALL LINES ---
     st.sidebar.markdown("**Line Display**")
@@ -126,7 +140,9 @@ if current_file:
 
         # FIX: choose base index correctly when showing all lines
         base_index = 0 if st.session_state.show_all_lines else st.session_state.line_index
-        display_lines = lines if st.session_state.show_all_lines else lines[base_index:base_index + 5]
+       # display_lines = lines if st.session_state.show_all_lines else lines[base_index:base_index + 5]
+        display_lines = filtered_lines if st.session_state.show_all_lines else filtered_lines[base_index:base_index + 5]
+
 
         # --- Batch Progress Bar ---
         progress_placeholder = st.empty()
@@ -164,22 +180,30 @@ if current_file:
                     height=80
                 )
 
-                # Keep OCR store in sync with latest edits
-                st.session_state.ocr_texts[line_id] = corrected_text
+               # Keep OCR store in sync with latest edits
+               
+                    # --- SAVE LINE IMAGE ---
+                image_path = os.path.join(dataset_folder, f"{line_id}.png")
+                line_img.save(image_path)
 
-                # 🔑 Immediately update labeled_lines (dedup by line_id)
-                existing = next(
-                    (item for item in st.session_state.labeled_lines if item["line_id"] == line_id),
-                    None
-                )
-                if existing:
-                    existing["corrected_text"] = corrected_text
-                else:
+                    # 🔑 Update labeled_lines with corrected text and image path
+                found = False
+                for item in st.session_state.labeled_lines:
+                    if item["line_id"] == line_id:
+                        item["corrected_text"] = corrected_text
+                        item["image_path"] = image_path
+                        found = True
+                        break
+
+                if not found:
                     st.session_state.labeled_lines.append({
                         "filename": current_file.name,
                         "line_id": line_id,
-                        "corrected_text": corrected_text
+                        "corrected_text": corrected_text,
+                        "image_path": image_path
                     })
+
+
 
         progress_placeholder.empty()  # Remove progress bar when done
 
