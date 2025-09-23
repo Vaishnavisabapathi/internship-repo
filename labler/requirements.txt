@@ -7,7 +7,7 @@ transformers
 torch
 pdf2image
 PyMuPDF
-
+pymupdf
 
 
 
