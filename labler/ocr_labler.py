@@ -173,35 +173,41 @@ if current_file:
                 st.image(resized_img)
 
                 # Use OCR text as initial value; widget state kept in its own key
-                corrected_text = st.text_area(
+               
+                st.text_area(
                     "Corrected Text",
                     value=st.session_state.ocr_texts[line_id],
                     key=f"text_{line_id}",
                     height=80
                 )
 
-               # Keep OCR store in sync with latest edits
-               
-                    # --- SAVE LINE IMAGE ---
+                # always fetch the latest text the user typed
+                
+                
+                    # update or insert safely
+                
+                    # Always keep OCR store in sync with latest edit
+                corrected_text = st.session_state[f"text_{line_id}"]
+                st.session_state.ocr_texts[line_id] = corrected_text
+
+# --- SAVE LINE IMAGE ---
                 image_path = os.path.join(dataset_folder, f"{line_id}.png")
                 line_img.save(image_path)
 
-                    # 🔑 Update labeled_lines with corrected text and image path
-                found = False
-                for item in st.session_state.labeled_lines:
-                    if item["line_id"] == line_id:
-                        item["corrected_text"] = corrected_text
-                        item["image_path"] = image_path
-                        found = True
-                        break
-
-                if not found:
+# update or insert safely into labeled_lines
+                existing = next((item for item in st.session_state.labeled_lines if item["line_id"] == line_id), None)
+                if existing:
+                    existing["corrected_text"] = corrected_text
+                    existing["image_path"] = image_path
+                else:
                     st.session_state.labeled_lines.append({
                         "filename": current_file.name,
                         "line_id": line_id,
                         "corrected_text": corrected_text,
                         "image_path": image_path
                     })
+
+
 
 
 
