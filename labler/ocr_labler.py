@@ -103,15 +103,15 @@ if current_file:
     total_pages = len(images)
 
     # --- PAGE NAVIGATION ---
-    st.sidebar.markdown("*Page Navigation*")
+    st.sidebar.markdown("**Page Navigation**")
     col_prev, col_page, col_next = st.sidebar.columns([1, 2, 1])
     with col_prev:
-        if st.button("⬅", key="prev_page") and st.session_state.current_page > 1:
+        if st.button("⬅️", key="prev_page") and st.session_state.current_page > 1:
             st.session_state.current_page -= 1
             st.session_state.line_index = 0
             st.rerun()
     with col_next:
-        if st.button("➡", key="next_page") and st.session_state.current_page < total_pages:
+        if st.button("➡️", key="next_page") and st.session_state.current_page < total_pages:
             st.session_state.current_page += 1
             st.session_state.line_index = 0
             st.rerun()
@@ -139,7 +139,7 @@ if current_file:
 
 
     # --- TOGGLE: SHOW ALL LINES ---
-    st.sidebar.markdown("*Line Display*")
+    st.sidebar.markdown("**Line Display**")
     st.session_state.show_all_lines = st.sidebar.checkbox(
         "Show All Lines",
         value=st.session_state.show_all_lines
@@ -174,7 +174,7 @@ if current_file:
                 st.session_state.ocr_texts[line_id] = run_ocr(line_img)
 
             with st.container():
-                st.markdown(f"*Line {global_line_num}* — ID: {line_id}")
+                st.markdown(f"**Line {global_line_num}** — ID: `{line_id}`")
 
                 # Enhance contrast and resize safely without distortion
                 enhancer = ImageEnhance.Contrast(line_img)
@@ -232,11 +232,11 @@ if current_file:
         if not st.session_state.show_all_lines:
             col1, col2 = st.columns([1, 1])
             with col1:
-                if st.button("⬅ Prev 5", key="prev_5") and st.session_state.line_index >= 5:
+                if st.button("⬅️ Prev 5", key="prev_5") and st.session_state.line_index >= 5:
                     st.session_state.line_index -= 5
                     st.rerun()
             with col2:
-                if st.button("Next 5 ➡", key="next_5") and st.session_state.line_index + 5 < total_lines:
+                if st.button("Next 5 ➡️", key="next_5") and st.session_state.line_index + 5 < total_lines:
                     st.session_state.line_index += 5
                     st.rerun()
 
@@ -263,7 +263,7 @@ else:
         This tool uses TR-OCR for handwritten recognition and OpenCV for line segmentation.
 
         ---
-        *Features*
+        **Features**
         - Accurate OCR for handwritten text
         - Clean UI with professional navigation
         - Label 5 lines at a time or view all
